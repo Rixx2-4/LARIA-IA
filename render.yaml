@@ -51,6 +51,5 @@ services:
       # La pones tú en el dashboard al crear el Blueprint (sync: false).
       - key: OPENAI_API_KEY
         sync: false
-      # Ajusta con la URL real de Vercel + fronts locales.
       - key: CORS_ORIGINS
-        value: '["https://localhost:4321","http://localhost:4321"]'
+        value: '["https://laria-chatbot.vercel.app","http://localhost:4321"]'
