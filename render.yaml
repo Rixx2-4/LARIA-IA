@@ -1,9 +1,12 @@
-# Blueprint Render — backend LARIA (rama feature/backend).
+# Blueprint Render — DEMO EFÍMERA del backend LARIA (no es producción).
+# Persistencia: DB_PROVIDER=memory (datos se pierden al reiniciar / sleep free).
+# Producción real: Docker Compose + Mongo + Redis + EVENT_BUS_BACKEND=outbox.
 # Dashboard: New → Blueprint → este repo → render.yaml
-# Docs: https://render.com/docs/infrastructure-as-code
+# Docs: backend/docs/deploy-render.md
 
 services:
   - type: web
+    # Nombre histórico del servicio; tipología = DEMO (memory), no producción.
     name: laria-backend
     runtime: docker
     plan: free
@@ -15,6 +18,8 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: LARIA_DEPLOY_TIER
+        value: demo
       - key: APP_ENV
         value: development
       - key: DB_PROVIDER
