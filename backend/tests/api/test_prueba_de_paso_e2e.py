@@ -148,3 +148,27 @@ def test_la_prueba_de_paso_tiene_limite_de_peticiones():
 
     regla = _match_rule("/api/v1/learning/paths/abc/passage-test", "POST")
     assert regla is not None and regla[0] == "ia:passage" and regla[1] <= 6
+
+
+def test_reintentar_un_quiz_de_practica_no_cuenta_como_evidencia(entorno):  # noqa: F811
+    """ADR-044: tras el primer intento se ven las correctas; repetirlo es practicar.
+    Antes cada reintento subía el dominio: reintentar hasta acertar parecía aprender."""
+    import asyncio
+    from uuid import UUID
+
+    c, _ = entorno
+    h = _auth(c)
+    yo = UUID(c.get("/api/v1/users/me", headers=h).json()["id"])
+    q = c.post("/api/v1/quizzes/practice", headers=h, json={"topic": "python", "num_questions": 4}).json()
+    url = f"/api/v1/quizzes/{q['id']}/attempts"
+    perfiles = __import__("src.interfaces.api.dependencies", fromlist=["x"]).get_profile_repo()
+
+    assert c.post(url, headers=h, json={"answers": _fallar(q)}).status_code == 200
+    tras_el_primero = dict(asyncio.run(perfiles.find_by_student(yo)).mastery_by_concept)
+
+    segundo = c.post(url, headers=h, json={"answers": _correctas(q)})
+    assert segundo.status_code == 200, "practicar sigue permitido"
+    assert segundo.json()["score"] == segundo.json()["total_points"]
+    tras_el_segundo = dict(asyncio.run(perfiles.find_by_student(yo)).mastery_by_concept)
+
+    assert tras_el_primero and tras_el_segundo == tras_el_primero

@@ -250,6 +250,15 @@ class LearningEvidenceProjector:
 
         await with_concurrency_retry(_persist_profile)
 
+    async def _es_reintento(self, attempt) -> bool:
+        """Si hay un intento anterior sobre el mismo quiz (por fecha; empate, por id)."""
+        try:
+            todos = await self._attempt_repo.find_by_quiz(attempt.quiz_id)
+        except Exception:  # noqa: BLE001 — sin historial, se cuenta como primero
+            return False
+        clave = (attempt.completed_at, str(attempt.id))
+        return any((a.completed_at, str(a.id)) < clave for a in todos if a.id != attempt.id)
+
     async def handle_quiz_attempt(self, event: QuizAttemptCompletedEvent) -> None:
         if self._profile_repo is not None:
             existing = await self._profile_repo.find_by_student(event.student_id)
@@ -273,6 +282,9 @@ class LearningEvidenceProjector:
 
         etiquetados = 0
         sin_etiquetar = 0
+        #: Un segundo intento sobre el mismo quiz (ADR-044): queda en el historial,
+        #: pero no es una medición.
+        reintento = False
         tema_nivelacion: str | None = None
         ronda_nivelacion: str | None = None
         etiqueta_nivelacion: str | None = None
@@ -283,7 +295,9 @@ class LearningEvidenceProjector:
                 ronda_nivelacion = quiz.placement_round
                 etiqueta_nivelacion = quiz.topic_label
             attempt = await self._attempt_repo.find_by_id(event.aggregate_id)
-            if quiz is not None and attempt is not None:
+            if attempt is not None and await self._es_reintento(attempt):
+                reintento = True
+            if quiz is not None and attempt is not None and not reintento:
                 for i, question in enumerate(quiz.questions):
                     tagged = self._tagger.tag_question(question)
                     ok = (
@@ -315,6 +329,14 @@ class LearningEvidenceProjector:
             # reintento por conflicto, el perfil releído puede tener el evento
             # ya aplicado y se contaría el intento dos veces.
             if profile.was_event_applied(event.event_id):
+                return profile
+            if reintento:
+                # El primer intento ya mostró las respuestas correctas: repetirlo es
+                # practicar, no demostrar. Si contara, reintentar hasta acertar subía
+                # el dominio sin aprender nada (invariante 4, ADR-044).
+                profile.mark_event_applied(event.event_id)
+                await self._profile_repo.save(profile)
+                logger.info("quiz_reintento_sin_evidencia student=%s quiz=%s", event.student_id, event.quiz_id)
                 return profile
             if event.document_id is None:
                 # Diagnóstico de entrada: ítems calificados sobre conceptos, sin
