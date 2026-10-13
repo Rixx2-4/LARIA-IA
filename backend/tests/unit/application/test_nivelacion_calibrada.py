@@ -23,6 +23,15 @@ def _q(texto, dif="easy"):
                         correct_answer="A", difficulty=dif, concept_tags=("fraccion",))
 
 
+def _ronda(prefijo, difs):
+    """Ítems con el reparto real del plan (ADR-045): si no, el servicio los rechaza."""
+    return [_q(f"{prefijo} {i}", d) for i, d in enumerate(difs)]
+
+
+BASE = ("easy",) * 4 + ("medium",) * 2
+AVANZADA = ("medium",) * 3 + ("hard",) * 5
+
+
 def test_el_prompt_define_que_es_cada_dificultad_y_pide_una_sola_correcta():
     s = TutorPolicy().generate_diagnostic(plan_diagnostic("fracciones", build_seeded_graph())).system
 
@@ -65,8 +74,8 @@ def _servicio(analista, repo):
 @pytest.mark.asyncio
 async def test_la_ronda_avanzada_recibe_las_preguntas_previas_y_usa_el_modelo_fuerte():
     repo = InMemoryQuizRepository()
-    base = [_q(f"¿Pregunta base {i} sobre fracciones?") for i in range(6)]
-    avanzada = [_q(f"Problema avanzado número {i} con varios pasos", "hard") for i in range(8)]
+    base = _ronda("¿Pregunta base sobre fracciones?", BASE)
+    avanzada = _ronda("Problema avanzado con varios pasos", AVANZADA)
     analista = AnalistaFalso([base, avanzada])
     servicio, user = _servicio(analista, repo), uuid4()
     grafo = build_seeded_graph()
@@ -83,9 +92,9 @@ async def test_la_ronda_avanzada_recibe_las_preguntas_previas_y_usa_el_modelo_fu
 @pytest.mark.asyncio
 async def test_si_repite_se_genera_otra_vez_y_se_queda_la_que_menos_repite():
     repo = InMemoryQuizRepository()
-    base = [_q(f"¿Pregunta base {i}?") for i in range(6)]
-    repetida = [_q("¿Pregunta base 0?", "hard")] + [_q(f"Nueva {i} con pasos", "hard") for i in range(7)]
-    limpia = [_q(f"Distinta {i} con varios pasos", "hard") for i in range(8)]
+    base = _ronda("¿Pregunta base?", BASE)
+    repetida = [_q("¿Pregunta base? 0", "medium")] + _ronda("Nueva con pasos", AVANZADA[1:])
+    limpia = _ronda("Distinta con varios pasos", AVANZADA)
     analista = AnalistaFalso([base, repetida, limpia])
     servicio, user = _servicio(analista, repo), uuid4()
     grafo = build_seeded_graph()
@@ -95,3 +104,33 @@ async def test_si_repite_se_genera_otra_vez_y_se_queda_la_que_menos_repite():
 
     assert len(analista.llamadas) == 3
     assert all(q.text.startswith("Distinta") for q in quiz.questions)
+
+
+def test_el_reparto_del_plan_se_cumple_y_lo_que_sobra_se_descarta():
+    """ADR-045: en producción una ronda avanzada (3 medias + 5 difíciles) llegó con
+    10 ítems y 3 fáciles, que inflaban el aprobado."""
+    from src.domain.services.diagnostic_planner import fit_to_plan
+
+    plan = plan_diagnostic("fracciones", build_seeded_graph(), PlacementRound.AVANZADA)
+    generadas = _ronda("Fácil", ("easy",) * 3) + _ronda("Media", ("medium",) * 4) + _ronda("Dura", ("hard",) * 5)
+    elegidas, cumple = fit_to_plan(generadas, plan)
+    assert cumple and len(elegidas) == 8
+    assert [q.difficulty for q in elegidas].count("medium") == 3
+    assert not any(q.text.startswith("Fácil") for q in elegidas)
+
+    corta, cumple = fit_to_plan(_ronda("Media", ("medium",) * 3) + _ronda("Dura", ("hard",) * 2), plan)
+    assert not cumple and len(corta) == 5
+
+
+@pytest.mark.asyncio
+async def test_si_el_reparto_no_cuadra_se_regenera_una_vez():
+    repo = InMemoryQuizRepository()
+    mala = _ronda("Fácil", ("easy",) * 3) + _ronda("Media", ("medium",) * 3) + _ronda("Dura", ("hard",) * 2)
+    buena = _ronda("Buena", AVANZADA)
+    analista = AnalistaFalso([mala, buena])
+    servicio, user = _servicio(analista, repo), uuid4()
+
+    quiz = await servicio._quiz_por_tema(plan_diagnostic("fracciones", build_seeded_graph(), PlacementRound.AVANZADA), user)
+
+    assert len(analista.llamadas) == 2
+    assert len(quiz.questions) == 8 and all(q.text.startswith("Buena") for q in quiz.questions)

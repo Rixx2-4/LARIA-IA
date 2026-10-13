@@ -226,7 +226,7 @@ adaptación deja de existir, aunque la UI parezca funcionar.
 ## Errores
 
 - **409 al reenviar una nivelación o una prueba de paso** (`POST /quizzes/{id}/attempts` sobre un quiz con `placement_round`): se responden una sola vez. Para intentarlo de nuevo, pide otra ronda ([ADR-043](adr/ADR-043-cerrar-abusos-de-evaluacion-y-chat.md)).
-- **Chat:** `POST /chats/{id}/messages` y `/stream` aceptan `role` `user` (y `system` en `/messages`, para notas); `assistant` → **422**. `content` hasta **8000** caracteres.
+- **Chat:** `POST /chats/{id}/messages` y `/stream` aceptan `role` `user` (y `system` en `/messages`, para notas); `assistant` → **422**. `content` hasta **20 000** caracteres ([ADR-046](adr/ADR-046-tope-del-chat-20000.md)).
 
 | Código | Cuándo | Qué mostrar |
 |--------|--------|-------------|

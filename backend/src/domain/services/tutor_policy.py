@@ -273,7 +273,13 @@ _RUBRICA_DIFICULTAD = (
     "(calcular, clasificar, predecir un resultado sencillo); "
     "hard = resolver un problema de VARIOS pasos, combinar dos ideas, detectar un "
     "error en un razonamiento o aplicar el concepto a una situación nueva. Una "
-    "pregunta hard nunca se responde recordando un dato: exige razonar."
+    "pregunta hard nunca se responde recordando un dato: exige razonar. "
+    # Medido (ADR-045): un tercio de las "hard" se respondían en un paso o de
+    # memoria, y en producción había "hard" como "¿Qué es un pipeline?".
+    "Cada hard trae un caso concreto con datos, código o una situación que hay que "
+    "analizar, y su respuesta no aparece literalmente en el enunciado. Nunca empieces "
+    "una hard con «¿Qué es…?», «¿Qué significa…?» ni «¿Cuál es la definición…?». "
+    "Devuelve exactamente el número de ítems de cada dificultad que se pide, ni más ni menos."
 )
 
 
