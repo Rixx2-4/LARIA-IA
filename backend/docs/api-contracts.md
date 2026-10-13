@@ -21,7 +21,7 @@ endpoint para escribir el progreso de un módulo.
 | `GET` | `/learning/paths` | Lista tus rutas, con progreso proyectado |
 | `POST` | `/learning/paths` | Crea una ruta (plan de módulos y prerrequisitos) |
 | `GET` | `/learning/paths/{path_id}` | Una ruta, con progreso proyectado |
-| `DELETE` | `/learning/paths/{path_id}` | Borra la ruta (`204`) |
+| `DELETE` | `/learning/paths/{path_id}` | Borra la clase (`204`; ajena o ya borrada → `404`). Conserva lo aprendido y el nivel del tema: recrearla no repite la nivelación |
 
 ## Tramos: la ruta crece con el nivel ([ADR-037](adr/ADR-037-rutas-por-tramos.md))
 
