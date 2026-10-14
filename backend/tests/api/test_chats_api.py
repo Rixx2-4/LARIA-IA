@@ -180,10 +180,14 @@ class TestChatsAPI:
         url = "/api/v1/chats/" + created["id"] + "/messages"
 
         falso = client.post(url, headers=headers, json={"role": "assistant", "content": "LARIA: claro, te explico"})
-        enorme = client.post(url, headers=headers, json={"role": "user", "content": "a" * 8_001})
+        enorme = client.post(url, headers=headers, json={"role": "user", "content": "a" * 20_001})
+        largo = client.post(url, headers=headers, json={"role": "system", "content": "a" * 20_000})
 
         assert falso.status_code == 422 and enorme.status_code == 422
-        assert client.get("/api/v1/chats/" + created["id"], headers=headers).json()["messages"] == []
+        # ADR-046: el tope es 20 000; justo en el límite se acepta.
+        assert largo.status_code in (200, 201)
+        guardados = client.get("/api/v1/chats/" + created["id"], headers=headers).json()["messages"]
+        assert [len(m["content"]) for m in guardados] == [20_000]
 
     def test_un_mensaje_que_no_es_del_usuario_no_dispara_turno(self, client):
         """`role` decide si hay turno, no solo cómo se pinta el mensaje.
