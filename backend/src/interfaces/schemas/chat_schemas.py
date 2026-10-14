@@ -11,8 +11,10 @@ class ChatCreateRequest(BaseModel):
 
 
 #: Tope de un mensaje del chat (ADR-043). Sin él, un mensaje de 1 MB iba entero a la
-#: moderación y al modelo: gasto en OpenAI y respuestas lentas.
-MAX_CHAT_MESSAGE_CHARS = 8_000
+#: moderación y al modelo: gasto en OpenAI y respuestas lentas. 20 000 deja pegar un
+#: texto o un fragmento de código largo (ADR-046); el historial ya recorta cada mensaje
+#: a 1500, así que solo el turno actual va entero.
+MAX_CHAT_MESSAGE_CHARS = 20_000
 
 
 class ChatAddMessageRequest(BaseModel):

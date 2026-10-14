@@ -112,8 +112,10 @@ services:
       # La pones tú en el dashboard al crear el Blueprint (sync: false).
       - key: OPENAI_API_KEY
         sync: false
+      # localhost:3000 es el frontend en local (next dev) contra esta API. Sin
+      # credenciales (el token va en Authorization), así que no expone nada.
       - key: CORS_ORIGINS
-        value: '["https://laria-frontend.vercel.app","http://localhost:4321"]'
+        value: '["https://laria-frontend.vercel.app","http://localhost:3000","http://localhost:4321"]'
       # Vistas previas de Vercel de los PRs del frontend: cada una tiene su URL.
       # Se valida al arrancar; un patrón que deje pasar orígenes ajenos no arranca.
       - key: CORS_ORIGIN_REGEX

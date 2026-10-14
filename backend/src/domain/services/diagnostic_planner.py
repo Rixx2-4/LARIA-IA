@@ -278,3 +278,26 @@ def plan_passage_test(
         label=label or display_label(topic),
         studied=tuple(studied),
     )
+
+
+def fit_to_plan(questions: list, plan: DiagnosticPlan) -> tuple[list, bool]:
+    """Ajusta lo generado al reparto del plan. Devuelve (preguntas, cumple). Pura.
+
+    El modelo no siempre respeta el reparto: en una ronda avanzada (3 medias y 5
+    difíciles) llegó a devolver 10 ítems con 3 fáciles, que inflaban el aprobado.
+    Aquí se toma, por peldaño y en orden, como mucho los ítems que pide; lo que no
+    corresponde a ningún peldaño se descarta. `cumple` es False si algún peldaño
+    quedó corto: quien llama decide si regenerar (ADR-045).
+    """
+    def _valor(d) -> str:
+        # El adaptador da `Difficulty`; un doble o un JSON crudo, el texto ("hard").
+        return getattr(d, "value", d)
+
+    quedan = {_valor(r.difficulty): r.items for r in plan.rungs}
+    elegidas = []
+    for q in questions:
+        d = _valor(q.difficulty)
+        if quedan.get(d, 0) > 0:
+            elegidas.append(q)
+            quedan[d] -= 1
+    return elegidas, all(v == 0 for v in quedan.values())

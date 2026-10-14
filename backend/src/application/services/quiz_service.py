@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 from uuid import UUID
 
@@ -15,7 +16,7 @@ from src.domain.concept_identity import canonicalize_concept
 from src.domain.aggregates.quiz_attempt_aggregate import QuizAttemptAggregate
 from src.domain.aggregates.tutor_session import TutorSession
 from src.domain.ports.event_bus import EventBus
-from src.domain.ports.ia_analyst import IAAnalyst
+from src.domain.ports.ia_analyst import IAAnalysisError, IAAnalyst
 from src.domain.ports.repositories import (
     ConceptGraphRepository,
     DocumentRepository,
@@ -29,6 +30,7 @@ from src.application.services.llm_gate import LlmGate
 from src.domain.services.concept_tagger import ConceptTagger
 from src.domain.services.context_selector import ContextSelector
 from src.domain.services.diagnostic_planner import (
+    fit_to_plan,
     PASSING_RATIO,
     PlacementLevel,
     PlacementRound,
@@ -41,6 +43,8 @@ from src.domain.services.diagnostic_planner import (
 from src.domain.services.pedagogical_engine import PedagogicalEngine, TutorIntent
 from src.domain.services.quiz_quality import ensure_quiz_quality
 from src.domain.value_objects.question import Difficulty
+
+logger = logging.getLogger("laria.quiz")
 
 
 def repeated_questions(preguntas, previas: tuple[str, ...], umbral: float = 0.75) -> int:
@@ -282,7 +286,17 @@ class QuizService:
         lo distingue `plan.round` (None = práctica, que no escribe nivel)."""
         previas = await self._preguntas_previas(user_id, plan.topic)
         generated = await self._generar_sin_repetir(plan, previas)
-        questions = ensure_quiz_quality(list(generated.questions))
+        ajustadas, cumple = fit_to_plan(list(generated.questions), plan)
+        if not cumple:
+            # El reparto de dificultad ES la medición (ADR-045): un intento más.
+            otro = await self._generar_sin_repetir(plan, previas)
+            otras, cumple_otro = fit_to_plan(list(otro.questions), plan)
+            if cumple_otro or len(otras) > len(ajustadas):
+                ajustadas = otras
+            logger.info("reparto_regenerado cumple=%s items=%d", cumple_otro, len(ajustadas))
+        if not ajustadas:
+            raise IAAnalysisError("No se pudo generar la nivelación. Inténtalo de nuevo.")
+        questions = ensure_quiz_quality(ajustadas)
         # Red de seguridad: el prompt pide concept_tags, pero si el modelo los
         # omite la evidencia se perdería sin que nadie lo note.
         questions = self._tagger.tag_questions(questions, plan.concepts)
